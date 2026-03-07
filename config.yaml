@@ -1,0 +1,99 @@
+mode: "vit_mlp"           # One of: "vit_mlp" | "vit_capsule" | "multiscale_capsule"
+                          # vit_mlp            -> Stage 1: ViT + MLP classifier (baseline)
+                          # vit_capsule        -> Stage 2: ViT + Capsule Network head
+                          # multiscale_capsule -> Stage 3: dual-scale ViT + Capsule Network head
+
+model:
+  image_size: 256         # Input image size (height and width). Must be divisible by patch_size.
+  patch_size: 16          # Primary patch size. 256/16 = 16x16 = 256 patches.
+  patch_size_fine: 8      # Fine-grained patch size for Stage 3 only. 256/8 = 32x32 = 1024 patches.
+  dim: 512                # Embedding dimension throughout the ViT. Scaled up from weather project (384).
+  depth: 10               # Number of Transformer encoder layers. Scaled up from 8.
+  heads: 8                # Number of attention heads. Must divide evenly into dim (512/8=64).
+  mlp_dim: 1024           # Hidden dimension of Transformer feedforward layers (2x dim).
+  dropout: 0.1            # Dropout rate throughout the ViT encoder.
+  num_classes: 45         # RESISC45 has 45 scene classes.
+
+capsule:
+  primary_caps_channels: 32    # Number of primary capsule channels out of the convolutional layer.
+  primary_caps_dim: 8          # Dimensionality of each primary capsule vector.
+  digit_caps_dim: 16           # Dimensionality of each digit (class) capsule vector.
+  num_routing: 3               # Number of dynamic routing iterations (Sabour et al. recommend 3).
+  routing_init: 0.0            # Initial value for routing logits b_ij (zero = uniform routing).
+
+loss:
+  margin_loss_lambda: 0.5      # Weight on the absent class margin loss term.
+  m_plus: 0.9                  # Upper margin: present class capsule length should exceed this.
+  m_minus: 0.1                 # Lower margin: absent class capsule length should be below this.
+
+training:
+  epochs: 100
+  patience: 15                 # Early stopping patience.
+  batch_size: 32
+  learning_rate: 0.0001
+  weight_decay: 0.05
+  betas: [0.9, 0.999]
+  eta_min: 0.000001            # Minimum LR for cosine annealing scheduler.
+  grad_clip: 1.0
+  accumulation_steps: 4        # Effective batch size = 32 * 4 = 128.
+
+data:
+  dataset_name: "jonathan-roberts1/NWPU-RESISC45"   # HuggingFace dataset identifier.
+  data_dir: "data/resisc45"                          # Local cache directory.
+  train_split: 0.75            # 525 images per class for training.
+  val_split: 0.107             # 75 images per class for validation.
+  test_split: 0.143            # 100 images per class for test.
+  num_workers: 4
+  image_mean: [0.3682, 0.3810, 0.3436]   # RESISC45 dataset mean (RGB).
+  image_std: [0.2025, 0.1852, 0.1844]    # RESISC45 dataset std (RGB).
+
+classes:
+  - airplane
+  - airport
+  - baseball_diamond
+  - basketball_court
+  - beach
+  - bridge
+  - chaparral
+  - church
+  - circular_farmland
+  - cloud
+  - commercial_area
+  - dense_residential
+  - desert
+  - forest
+  - freeway
+  - golf_course
+  - ground_track_field
+  - harbor
+  - industrial_area
+  - intersection
+  - island
+  - lake
+  - meadow
+  - medium_residential
+  - mobile_home_park
+  - mountain
+  - overpass
+  - palace
+  - parking_lot
+  - railway
+  - railway_station
+  - rectangular_farmland
+  - river
+  - roundabout
+  - runway
+  - sea_ice
+  - ship
+  - snowberg
+  - sparse_residential
+  - stadium
+  - storage_tank
+  - tennis_court
+  - terrace
+  - thermal_power_station
+  - wetland
+
+paths:
+  checkpoints_dir: "checkpoints"
+  results_dir: "results"
