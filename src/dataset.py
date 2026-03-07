@@ -74,18 +74,27 @@ def get_dataloaders(config):
     ds = load_dataset(
         dc['dataset_name'],
         cache_dir=dc['data_dir'],
-    )
+    )['train']
 
-    print(f"[dataset] Train: {len(ds['train'])} images")
-    print(f"[dataset] Val:   {len(ds['validation'])} images")
-    print(f"[dataset] Test:  {len(ds['test'])} images")
+    # Split into train/val/test per class (525/75/100 = 700 per class)
+    # First split off test (100/700 = ~14.3%), then val from remainder (75/600 = 12.5%)
+    split1 = ds.train_test_split(test_size=100/700, seed=42, stratify_by_column='label')
+    split2 = split1['train'].train_test_split(test_size=75/600, seed=42, stratify_by_column='label')
 
-    class_names = ds['train'].features['label'].names
+    train_data = split2['train']
+    val_data   = split2['test']
+    test_data  = split1['test']
+
+    print(f"[dataset] Train: {len(train_data)} images")
+    print(f"[dataset] Val:   {len(val_data)} images")
+    print(f"[dataset] Test:  {len(test_data)} images")
+
+    class_names = ds.features['label'].names
     print(f"[dataset] Classes: {len(class_names)}")
 
-    train_ds = RESISC45Dataset(ds['train'],      get_transforms(config, 'train'))
-    val_ds   = RESISC45Dataset(ds['validation'], get_transforms(config, 'val'))
-    test_ds  = RESISC45Dataset(ds['test'],       get_transforms(config, 'test'))
+    train_ds = RESISC45Dataset(train_data, get_transforms(config, 'train'))
+    val_ds   = RESISC45Dataset(val_data,   get_transforms(config, 'val'))
+    test_ds  = RESISC45Dataset(test_data,  get_transforms(config, 'test'))
 
     num_workers = dc.get('num_workers', 4)
     batch_size  = config['training']['batch_size']

@@ -1,0 +1,22 @@
+# Core
+torch
+torchvision
+torchaudio
+
+# Data
+datasets
+huggingface_hub
+pillow
+
+# Config and utilities
+pyyaml
+tqdm
+
+# Evaluation and visualization
+scikit-learn
+matplotlib
+seaborn
+
+# Architecture visualization
+torchview
+graphviz
