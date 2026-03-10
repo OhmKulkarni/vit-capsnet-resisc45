@@ -20,6 +20,7 @@ Switching stages:
         vit_mlp            -> Stage 1 baseline
         vit_capsule        -> Stage 2 capsule head
         multiscale_capsule -> Stage 3 dual-scale capsule
+        patch_capsule      -> Stage 4 patch-level primary capsules
     Then run python train.py
 """
 
@@ -140,6 +141,7 @@ def main():
     loss_fn = get_loss_fn(config).to(device)
     print(f"[loss] Using: {'CrossEntropyLoss' if mode == 'vit_mlp' else 'MarginLoss'}")
 
+
     # Optimizer
     optimizer = optim.AdamW(
         model.parameters(),
@@ -178,7 +180,7 @@ def main():
         if mode == 'vit_capsule':
             for p in model.encoder.parameters():
                 p.requires_grad = False
-        elif mode == 'multiscale_capsule':
+        elif mode in ('multiscale_capsule', 'patch_capsule'):
             for p in model.encoder_coarse.parameters():
                 p.requires_grad = False
             for p in model.encoder_fine.parameters():
@@ -217,7 +219,7 @@ def main():
             if mode == 'vit_capsule':
                 for p in model.encoder.parameters():
                     p.requires_grad = True
-            elif mode == 'multiscale_capsule':
+            elif mode in ('multiscale_capsule', 'patch_capsule'):
                 for p in model.encoder_coarse.parameters():
                     p.requires_grad = True
                 for p in model.encoder_fine.parameters():

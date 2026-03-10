@@ -364,6 +364,38 @@ class CapsuleNetwork(nn.Module):
         return v
 
 
+
+# ---------------------------------------------------------------------------
+# Stage 4: Patch-level Primary Capsules
+# ---------------------------------------------------------------------------
+
+class PatchPrimaryCapsules(nn.Module):
+    """
+    Converts a sequence of patch token vectors (B, num_patches, dim) into
+    primary capsule vectors (B, num_patches, primary_caps_dim).
+
+    Unlike PrimaryCapsules which collapses a single CLS token via Linear,
+    this applies a shared Linear projection to every patch token independently,
+    preserving spatial structure for routing. Each patch becomes one capsule,
+    giving the routing algorithm spatially-grounded part detectors — closer to
+    the original Sabour et al. design where primary capsules came from
+    spatially-arranged convolutional feature maps.
+
+    Args:
+        in_dim          : Input token dimension (ViT dim).
+        primary_caps_dim: Dimensionality of each output capsule vector.
+    """
+
+    def __init__(self, in_dim, primary_caps_dim):
+        super().__init__()
+        self.primary_caps_dim = primary_caps_dim
+        self.projection = nn.Linear(in_dim, primary_caps_dim)
+
+    def forward(self, x):
+        # x: (B, num_patches, in_dim)
+        x = self.projection(x)          # (B, num_patches, primary_caps_dim)
+        return squash(x)                # squash each patch capsule independently
+
 # ---------------------------------------------------------------------------
 # Top-level Combined Model
 # ---------------------------------------------------------------------------
@@ -443,10 +475,44 @@ class CombinedModel(nn.Module):
             self.classifier = CapsuleNetwork(num_primary, primary_dim,
                                              num_classes, digit_dim, num_routing,
                                              dropout=caps_dropout)
+        elif self.mode == 'patch_capsule':
+            # Coarse encoder: CLS token for global context (patch=16, full depth)
+            self.encoder_coarse = VisionTransformer(**vit_kwargs)
+            # Fine encoder: all patch tokens become primary capsules (patch=8, shallow)
+            fine_kwargs = {**vit_kwargs,
+                           'patch_size': mc['patch_size_fine'],
+                           'depth'     : mc.get('depth_fine', 2)}
+            self.encoder_fine = VisionTransformer(**fine_kwargs)
+            self.encoder_fine.use_gradient_checkpointing = mc.get('gradient_checkpoint_fine', True)
+
+            # num_patches for fine encoder: (image_size / patch_size_fine)^2
+            patch_size_fine  = mc['patch_size_fine']
+            self.num_patches_fine = (mc['image_size'] // patch_size_fine) ** 2
+
+            primary_dim  = cc.get('primary_caps_dim', 8)
+            digit_dim    = cc.get('digit_caps_dim', 8)
+            num_routing  = cc.get('num_routing', 3)
+            caps_dropout = cc.get('caps_dropout', 0.2)
+
+            # Each of the num_patches_fine patch tokens becomes one primary capsule
+            self.primary    = PatchPrimaryCapsules(mc['dim'], primary_dim)
+
+            # Capsule network routes num_patches_fine primary caps -> num_classes digit caps
+            self.classifier = CapsuleNetwork(
+                self.num_patches_fine, primary_dim,
+                num_classes, digit_dim, num_routing,
+                dropout=caps_dropout
+            )
+
+            # Global context projection: coarse CLS token projected to digit_caps_dim,
+            # added to digit capsule vectors before final norm (gives routing global context)
+            self.global_ctx = nn.Linear(mc['dim'], num_classes * digit_dim)
+            self._digit_dim = digit_dim
+
         else:
             raise ValueError(
                 f"Unknown mode '{self.mode}'. "
-                f"Must be one of: 'vit_mlp', 'vit_capsule', 'multiscale_capsule'."
+                f"Must be one of: 'vit_mlp', 'vit_capsule', 'multiscale_capsule', 'patch_capsule'."
             )
 
     def forward(self, x):
@@ -466,4 +532,37 @@ class CombinedModel(nn.Module):
             features    = torch.cat([feat_coarse, feat_fine], dim=-1)
             primary     = self.primary(features)
             caps_out    = self.classifier(primary)
+            return caps_out.norm(dim=-1)
+
+        elif self.mode == 'patch_capsule':
+            B = x.size(0)
+
+            # Coarse CLS token: global scene context
+            feat_coarse = self.encoder_coarse(x)     # (B, dim)
+
+            # Fine patch tokens: spatially-grounded part features
+            # encoder_fine.forward normally returns cls_out — we need raw patch tokens
+            # so we call the encoder internals directly
+            xf = self.encoder_fine.patch_embed(x)
+            cls_f = self.encoder_fine.cls_token.expand(B, -1, -1)
+            xf = torch.cat([cls_f, xf], dim=1)
+            xf = self.encoder_fine.dropout(xf + self.encoder_fine.pos_embed)
+            if self.encoder_fine.use_gradient_checkpointing and self.training:
+                xf = checkpoint_sequential(self.encoder_fine.encoder, len(self.encoder_fine.encoder), xf, use_reentrant=False)
+            else:
+                xf = self.encoder_fine.encoder(xf)
+            xf = self.encoder_fine.norm(xf)
+            patch_tokens = xf[:, 1:]                 # (B, num_patches_fine, dim) — drop CLS
+
+            # Each patch token -> primary capsule
+            primary  = self.primary(patch_tokens)    # (B, num_patches_fine, primary_caps_dim)
+
+            # Dynamic routing over patch capsules
+            caps_out = self.classifier(primary)      # (B, num_classes, digit_caps_dim)
+
+            # Inject global context from coarse CLS: reshape to (B, num_classes, digit_caps_dim)
+            # and add to digit capsules before squash+norm
+            ctx = self.global_ctx(feat_coarse).view(B, -1, self._digit_dim)
+            caps_out = squash(caps_out + ctx)
+
             return caps_out.norm(dim=-1)

@@ -1,7 +1,8 @@
-mode: "multiscale_capsule"           # One of: "vit_mlp" | "vit_capsule" | "multiscale_capsule"
+mode: "patch_capsule"                # One of: "vit_mlp" | "vit_capsule" | "multiscale_capsule" | "patch_capsule"
                           # vit_mlp            -> Stage 1: ViT + MLP classifier (baseline)
                           # vit_capsule        -> Stage 2: ViT + Capsule Network head
-                          # multiscale_capsule -> Stage 3: dual-scale ViT + Capsule Network head
+                          # multiscale_capsule -> Stage 3: dual-scale ViT + CLS concat + Capsule head
+                          # patch_capsule      -> Stage 4: patch tokens as spatial primary capsules
 
 model:
   image_size: 256         # Input image size (height and width). Must be divisible by patch_size.
@@ -31,13 +32,13 @@ loss:
 training:
   epochs: 100
   patience: 15                 # Early stopping patience.
-  batch_size: 16
+  batch_size: 32
   learning_rate: 0.0001
   weight_decay: 0.1
   betas: [0.9, 0.999]
   eta_min: 0.000001            # Minimum LR for cosine annealing scheduler.
   grad_clip: 1.0
-  accumulation_steps: 8        # Effective batch size = 16 * 8 = 128. Reduced batch for Stage 3 VRAM.
+  accumulation_steps: 4        # Effective batch size = 32 * 4 = 128.
   capsule_warmup_epochs: 10    # Freeze ViT encoder for first N epochs (capsule modes only).
 
 data:
