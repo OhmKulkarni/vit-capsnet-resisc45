@@ -21,6 +21,7 @@ Components:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint_sequential
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +158,7 @@ class VisionTransformer(nn.Module):
         ])
 
         self.norm        = nn.LayerNorm(dim)
+        self.use_gradient_checkpointing = False  # enabled externally for fine encoder
 
         self.mlp_head    = nn.Sequential(
             nn.LayerNorm(dim),
@@ -172,7 +174,14 @@ class VisionTransformer(nn.Module):
         cls = self.cls_token.expand(B, -1, -1)
         x   = torch.cat([cls, x], dim=1)
         x   = self.dropout(x + self.pos_embed)
-        x   = self.encoder(x)
+
+        if self.use_gradient_checkpointing and self.training:
+            # Recompute activations during backward to save VRAM
+            # segments=len(encoder) means one checkpoint per layer
+            x = checkpoint_sequential(self.encoder, len(self.encoder), x, use_reentrant=False)
+        else:
+            x = self.encoder(x)
+
         x   = self.norm(x)
 
         cls_out = x[:, 0]
@@ -298,18 +307,19 @@ class CapsuleNetwork(nn.Module):
     """
 
     def __init__(self, num_primary_caps, primary_caps_dim,
-                 num_digit_caps, digit_caps_dim, num_routing=3):
+                 num_digit_caps, digit_caps_dim, num_routing=3, dropout=0.2):
         super().__init__()
         self.num_primary_caps = num_primary_caps
         self.num_digit_caps   = num_digit_caps
         self.digit_caps_dim   = digit_caps_dim
         self.num_routing      = num_routing
+        self.dropout          = nn.Dropout(p=dropout)
 
         # Transformation matrices W_ij
         # Shape: (1, num_primary_caps, num_digit_caps, digit_caps_dim, primary_caps_dim)
         self.W = nn.Parameter(
             torch.randn(1, num_primary_caps, num_digit_caps,
-                        digit_caps_dim, primary_caps_dim) * 0.01
+                        digit_caps_dim, primary_caps_dim) * 0.1
         )
 
     def forward(self, u):
@@ -321,6 +331,9 @@ class CapsuleNetwork(nn.Module):
             v : Digit capsule vectors  (B, num_digit_caps, digit_caps_dim)
         """
         B = u.size(0)
+
+        # Apply dropout to primary capsules before routing to prevent co-adaptation
+        u = self.dropout(u)
 
         # u_expanded: (B, num_primary_caps, 1, primary_caps_dim, 1)
         u_expanded = u.unsqueeze(2).unsqueeze(4)
@@ -401,27 +414,35 @@ class CombinedModel(nn.Module):
 
         elif self.mode == 'vit_capsule':
             self.encoder    = VisionTransformer(**vit_kwargs)
-            num_primary     = cc.get('primary_caps_channels', 32)
+            num_primary     = cc.get('primary_caps_channels', 128)
             primary_dim     = cc.get('primary_caps_dim', 8)
-            digit_dim       = cc.get('digit_caps_dim', 16)
+            digit_dim       = cc.get('digit_caps_dim', 8)    # reduced from 16
             num_routing     = cc.get('num_routing', 3)
+            caps_dropout    = cc.get('caps_dropout', 0.2)
             self.primary    = PrimaryCapsules(mc['dim'], num_primary, primary_dim)
             self.classifier = CapsuleNetwork(num_primary, primary_dim,
-                                             num_classes, digit_dim, num_routing)
+                                             num_classes, digit_dim, num_routing,
+                                             dropout=caps_dropout)
 
         elif self.mode == 'multiscale_capsule':
             self.encoder_coarse = VisionTransformer(**vit_kwargs)
-            fine_kwargs = {**vit_kwargs, 'patch_size': mc['patch_size_fine']}
+            fine_kwargs = {**vit_kwargs,
+                           'patch_size': mc['patch_size_fine'],
+                           'depth': mc.get('depth_fine', 4)}  # shallower — 1024 tokens is 4x coarse compute
             self.encoder_fine   = VisionTransformer(**fine_kwargs)
+            # Gradient checkpointing on fine encoder — read from config (needed on 6GB VRAM)
+            self.encoder_fine.use_gradient_checkpointing = mc.get('gradient_checkpoint_fine', True)
 
-            fused_dim   = mc['dim'] * 2
-            num_primary = cc.get('primary_caps_channels', 32)
-            primary_dim = cc.get('primary_caps_dim', 8)
-            digit_dim   = cc.get('digit_caps_dim', 16)
-            num_routing = cc.get('num_routing', 3)
+            fused_dim    = mc['dim'] * 2
+            num_primary  = cc.get('primary_caps_channels', 128)
+            primary_dim  = cc.get('primary_caps_dim', 8)
+            digit_dim    = cc.get('digit_caps_dim', 8)       # reduced from 16
+            num_routing  = cc.get('num_routing', 3)
+            caps_dropout = cc.get('caps_dropout', 0.2)
             self.primary    = PrimaryCapsules(fused_dim, num_primary, primary_dim)
             self.classifier = CapsuleNetwork(num_primary, primary_dim,
-                                             num_classes, digit_dim, num_routing)
+                                             num_classes, digit_dim, num_routing,
+                                             dropout=caps_dropout)
         else:
             raise ValueError(
                 f"Unknown mode '{self.mode}'. "

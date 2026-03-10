@@ -25,6 +25,7 @@ Switching stages:
 
 import os
 import sys
+import json
 import argparse
 import yaml
 import torch
@@ -169,17 +170,39 @@ def main():
         for _ in range(start_epoch):
             scheduler.step()
 
+    # Capsule warmup — freeze ViT encoder for first N epochs so routing
+    # can bootstrap with a fixed feature extractor before joint training
+    warmup_epochs = tc.get('capsule_warmup_epochs', 0) if mode != 'vit_mlp' else 0
+    if warmup_epochs > 0:
+        print(f"[train] Capsule warmup: freezing ViT encoder for first {warmup_epochs} epochs")
+        if mode == 'vit_capsule':
+            for p in model.encoder.parameters():
+                p.requires_grad = False
+        elif mode == 'multiscale_capsule':
+            for p in model.encoder_coarse.parameters():
+                p.requires_grad = False
+            for p in model.encoder_fine.parameters():
+                p.requires_grad = False
+
     # Early stopping
     early_stopping = EarlyStopping(patience=tc['patience'], mode='max')
     early_stopping.best = best_val_acc if best_val_acc > 0 else None
 
-    # Training history
-    history = {
-        'train_loss': [],
-        'val_loss'  : [],
-        'train_acc' : [],
-        'val_acc'   : [],
-    }
+    # Training history — load existing if resuming so earlier epochs are preserved
+    history_path = os.path.join(
+        config['paths']['results_dir'], f"{mode}_history.json"
+    )
+    if args.resume and os.path.exists(history_path):
+        with open(history_path, 'r') as f:
+            history = json.load(f)
+        print(f"[history] Loaded {len(history['train_loss'])} existing epochs from {history_path}")
+    else:
+        history = {
+            'train_loss': [],
+            'val_loss'  : [],
+            'train_acc' : [],
+            'val_acc'   : [],
+        }
 
     print(f"\n[train] Starting training from epoch {start_epoch + 1} / {tc['epochs']}")
     print(f"[train] Batch size: {tc['batch_size']}  "
@@ -188,6 +211,18 @@ def main():
     print(f"[train] Early stopping patience: {tc['patience']} epochs\n")
 
     for epoch in range(start_epoch, tc['epochs']):
+        # Unfreeze encoder after warmup period
+        if warmup_epochs > 0 and epoch == warmup_epochs:
+            print(f"\n[train] Warmup complete — unfreezing ViT encoder for joint training")
+            if mode == 'vit_capsule':
+                for p in model.encoder.parameters():
+                    p.requires_grad = True
+            elif mode == 'multiscale_capsule':
+                for p in model.encoder_coarse.parameters():
+                    p.requires_grad = True
+                for p in model.encoder_fine.parameters():
+                    p.requires_grad = True
+
         current_lr = scheduler.get_last_lr()[0] if epoch > 0 else tc['learning_rate']
         print(f"Epoch {epoch+1:>3} / {tc['epochs']}  |  lr={current_lr:.2e}")
 
@@ -211,6 +246,9 @@ def main():
 
         print(f"  train_loss={train_loss:.4f}  train_acc={train_acc:.4f}  "
               f"val_loss={val_loss:.4f}  val_acc={val_acc:.4f}")
+
+        # Save history after every epoch so crashes don't lose progress
+        save_history(history, config)
 
         # Checkpoint
         is_best = val_acc > best_val_acc

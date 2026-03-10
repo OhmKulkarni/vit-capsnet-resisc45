@@ -1,4 +1,4 @@
-mode: "vit_mlp"           # One of: "vit_mlp" | "vit_capsule" | "multiscale_capsule"
+mode: "multiscale_capsule"           # One of: "vit_mlp" | "vit_capsule" | "multiscale_capsule"
                           # vit_mlp            -> Stage 1: ViT + MLP classifier (baseline)
                           # vit_capsule        -> Stage 2: ViT + Capsule Network head
                           # multiscale_capsule -> Stage 3: dual-scale ViT + Capsule Network head
@@ -7,6 +7,8 @@ model:
   image_size: 256         # Input image size (height and width). Must be divisible by patch_size.
   patch_size: 16          # Primary patch size. 256/16 = 16x16 = 256 patches.
   patch_size_fine: 8      # Fine-grained patch size for Stage 3 only. 256/8 = 32x32 = 1024 patches.
+  depth_fine: 2           # Very shallow — 1024 tokens is extremely expensive; 2 layers sufficient for local feature extraction.
+  gradient_checkpoint_fine: true  # Recompute fine encoder activations during backward to save VRAM (1024 tokens would OOM on 6GB otherwise).
   dim: 512                # Embedding dimension throughout the ViT. Scaled up from weather project (384).
   depth: 10               # Number of Transformer encoder layers. Scaled up from 8.
   heads: 8                # Number of attention heads. Must divide evenly into dim (512/8=64).
@@ -15,11 +17,11 @@ model:
   num_classes: 45         # RESISC45 has 45 scene classes.
 
 capsule:
-  primary_caps_channels: 32    # Number of primary capsule channels out of the convolutional layer.
+  primary_caps_channels: 128   # Must exceed num_classes (45) to avoid rank deficiency in routing.
   primary_caps_dim: 8          # Dimensionality of each primary capsule vector.
-  digit_caps_dim: 16           # Dimensionality of each digit (class) capsule vector.
+  digit_caps_dim: 8            # Reduced from 16 — halves W matrix params (23k samples vs 60k MNIST).
   num_routing: 3               # Number of dynamic routing iterations (Sabour et al. recommend 3).
-  routing_init: 0.0            # Initial value for routing logits b_ij (zero = uniform routing).
+  caps_dropout: 0.2            # Dropout on primary capsules before routing to prevent co-adaptation.
 
 loss:
   margin_loss_lambda: 0.5      # Weight on the absent class margin loss term.
@@ -29,13 +31,14 @@ loss:
 training:
   epochs: 100
   patience: 15                 # Early stopping patience.
-  batch_size: 32
+  batch_size: 16
   learning_rate: 0.0001
-  weight_decay: 0.05
+  weight_decay: 0.1
   betas: [0.9, 0.999]
   eta_min: 0.000001            # Minimum LR for cosine annealing scheduler.
   grad_clip: 1.0
-  accumulation_steps: 4        # Effective batch size = 32 * 4 = 128.
+  accumulation_steps: 8        # Effective batch size = 16 * 8 = 128. Reduced batch for Stage 3 VRAM.
+  capsule_warmup_epochs: 10    # Freeze ViT encoder for first N epochs (capsule modes only).
 
 data:
   dataset_name: "jonathan-roberts1/NWPU-RESISC45"   # HuggingFace dataset identifier.
