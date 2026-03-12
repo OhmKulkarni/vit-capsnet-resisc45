@@ -1,0 +1,277 @@
+{
+  "overall_accuracy": 0.8516,
+  "macro_f1": 0.8505,
+  "weighted_f1": 0.8505,
+  "per_class": {
+    "airplane": {
+      "precision": 0.9032,
+      "recall": 0.84,
+      "f1": 0.8705,
+      "support": 100
+    },
+    "airport": {
+      "precision": 0.8021,
+      "recall": 0.77,
+      "f1": 0.7857,
+      "support": 100
+    },
+    "baseball diamond": {
+      "precision": 0.8131,
+      "recall": 0.87,
+      "f1": 0.8406,
+      "support": 100
+    },
+    "basketball court": {
+      "precision": 0.7872,
+      "recall": 0.74,
+      "f1": 0.7629,
+      "support": 100
+    },
+    "beach": {
+      "precision": 0.8981,
+      "recall": 0.97,
+      "f1": 0.9327,
+      "support": 100
+    },
+    "bridge": {
+      "precision": 0.9494,
+      "recall": 0.75,
+      "f1": 0.838,
+      "support": 100
+    },
+    "chaparral": {
+      "precision": 0.9259,
+      "recall": 1.0,
+      "f1": 0.9615,
+      "support": 100
+    },
+    "church": {
+      "precision": 0.732,
+      "recall": 0.71,
+      "f1": 0.7208,
+      "support": 100
+    },
+    "circular farmland": {
+      "precision": 0.8972,
+      "recall": 0.96,
+      "f1": 0.9275,
+      "support": 100
+    },
+    "cloud": {
+      "precision": 0.9898,
+      "recall": 0.97,
+      "f1": 0.9798,
+      "support": 100
+    },
+    "commercial area": {
+      "precision": 0.8173,
+      "recall": 0.85,
+      "f1": 0.8333,
+      "support": 100
+    },
+    "dense residential": {
+      "precision": 0.7982,
+      "recall": 0.91,
+      "f1": 0.8505,
+      "support": 100
+    },
+    "desert": {
+      "precision": 0.91,
+      "recall": 0.91,
+      "f1": 0.91,
+      "support": 100
+    },
+    "forest": {
+      "precision": 0.93,
+      "recall": 0.93,
+      "f1": 0.93,
+      "support": 100
+    },
+    "freeway": {
+      "precision": 0.82,
+      "recall": 0.82,
+      "f1": 0.82,
+      "support": 100
+    },
+    "golf course": {
+      "precision": 0.93,
+      "recall": 0.93,
+      "f1": 0.93,
+      "support": 100
+    },
+    "ground track field": {
+      "precision": 0.78,
+      "recall": 0.78,
+      "f1": 0.78,
+      "support": 100
+    },
+    "harbor": {
+      "precision": 0.8482,
+      "recall": 0.95,
+      "f1": 0.8962,
+      "support": 100
+    },
+    "industrial area": {
+      "precision": 0.8152,
+      "recall": 0.75,
+      "f1": 0.7812,
+      "support": 100
+    },
+    "intersection": {
+      "precision": 0.7143,
+      "recall": 0.8,
+      "f1": 0.7547,
+      "support": 100
+    },
+    "island": {
+      "precision": 0.899,
+      "recall": 0.89,
+      "f1": 0.8945,
+      "support": 100
+    },
+    "lake": {
+      "precision": 0.8764,
+      "recall": 0.78,
+      "f1": 0.8254,
+      "support": 100
+    },
+    "meadow": {
+      "precision": 0.9674,
+      "recall": 0.89,
+      "f1": 0.9271,
+      "support": 100
+    },
+    "medium residential": {
+      "precision": 0.8081,
+      "recall": 0.8,
+      "f1": 0.804,
+      "support": 100
+    },
+    "mobile home park": {
+      "precision": 0.8667,
+      "recall": 0.91,
+      "f1": 0.8878,
+      "support": 100
+    },
+    "mountain": {
+      "precision": 0.901,
+      "recall": 0.91,
+      "f1": 0.9055,
+      "support": 100
+    },
+    "overpass": {
+      "precision": 0.8738,
+      "recall": 0.9,
+      "f1": 0.8867,
+      "support": 100
+    },
+    "palace": {
+      "precision": 0.75,
+      "recall": 0.63,
+      "f1": 0.6848,
+      "support": 100
+    },
+    "parking lot": {
+      "precision": 0.8288,
+      "recall": 0.92,
+      "f1": 0.872,
+      "support": 100
+    },
+    "railway": {
+      "precision": 0.8182,
+      "recall": 0.81,
+      "f1": 0.8141,
+      "support": 100
+    },
+    "railway station": {
+      "precision": 0.7143,
+      "recall": 0.65,
+      "f1": 0.6806,
+      "support": 100
+    },
+    "rectangular farmland": {
+      "precision": 0.8182,
+      "recall": 0.81,
+      "f1": 0.8141,
+      "support": 100
+    },
+    "river": {
+      "precision": 0.7727,
+      "recall": 0.85,
+      "f1": 0.8095,
+      "support": 100
+    },
+    "roundabout": {
+      "precision": 0.8675,
+      "recall": 0.72,
+      "f1": 0.7869,
+      "support": 100
+    },
+    "runway": {
+      "precision": 0.9691,
+      "recall": 0.94,
+      "f1": 0.9543,
+      "support": 100
+    },
+    "sea ice": {
+      "precision": 0.9802,
+      "recall": 0.99,
+      "f1": 0.9851,
+      "support": 100
+    },
+    "ship": {
+      "precision": 0.8421,
+      "recall": 0.8,
+      "f1": 0.8205,
+      "support": 100
+    },
+    "snowberg": {
+      "precision": 0.9091,
+      "recall": 1.0,
+      "f1": 0.9524,
+      "support": 100
+    },
+    "sparse residential": {
+      "precision": 0.8462,
+      "recall": 0.88,
+      "f1": 0.8627,
+      "support": 100
+    },
+    "stadium": {
+      "precision": 0.7624,
+      "recall": 0.77,
+      "f1": 0.7662,
+      "support": 100
+    },
+    "storage tank": {
+      "precision": 0.7925,
+      "recall": 0.84,
+      "f1": 0.8155,
+      "support": 100
+    },
+    "tennis court": {
+      "precision": 0.8478,
+      "recall": 0.78,
+      "f1": 0.8125,
+      "support": 100
+    },
+    "terrace": {
+      "precision": 0.9,
+      "recall": 0.9,
+      "f1": 0.9,
+      "support": 100
+    },
+    "thermal power station": {
+      "precision": 0.8241,
+      "recall": 0.89,
+      "f1": 0.8558,
+      "support": 100
+    },
+    "wetland": {
+      "precision": 0.85,
+      "recall": 0.85,
+      "f1": 0.85,
+      "support": 100
+    }
+  }
+}
